@@ -1,0 +1,96 @@
+<!DOCTYPE html>
+<html lang="he">
+<head>
+  <meta charset="UTF-8" />
+  <title>כניסה למצגות</title>
+</head>
+<body dir="rtl">
+  <h2>הזן סיסמה ושם פרשה:</h2>
+  <input type="password" id="passwordInput" placeholder="סיסמה" />
+  <input type="text" id="topicInput" placeholder="פרשה" />
+  <button onclick="checkAccess()">הצג מסמכים</button>
+
+  <div id="result"></div>
+
+  <script>
+    const apiKey = "AIzaSyClmkLxcxXdKkrmGVY2fjTsVgf31RcMS_4";
+    const sheetId = "1YWCM1uctEsK-504WkMSdsBm5y56GBwRB3Hy_r1OYXuI";
+
+    async function checkAccess() {
+      const inputPassword = document.getElementById("passwordInput").value.trim();
+      const inputTopic = document.getElementById("topicInput").value.trim().toLowerCase();
+      const resultDiv = document.getElementById("result");
+      resultDiv.innerHTML = "";
+
+      try {
+        // שלב 1: קבלת הסיסמה מ-A2
+        const passwordRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/גיליון1!A2?key=${apiKey}`);
+        const passwordData = await passwordRes.json();
+
+        if (!passwordData.values || !passwordData.values[0] || !passwordData.values[0][0]) {
+          resultDiv.innerHTML = "<p style='color:red;'>לא נמצאה סיסמה בגיליון</p>";
+          return;
+        }
+
+        const realPassword = passwordData.values[0][0];
+
+        // שלב 2: בדיקת סיסמה
+        if (inputPassword !== realPassword) {
+          resultDiv.innerHTML = "<p style='color:red;'>סיסמה שגויה</p>";
+          return;
+        }
+
+        // שלב 3: שליפת כל הנתונים
+        const dataRes = await fetch(`https://sheets.googleapis.com/v4/spreadsheets/${sheetId}/values/גיליון1?key=${apiKey}`);
+        const data = await dataRes.json();
+
+        if (!data.values || data.values.length < 2) {
+          resultDiv.innerHTML = "<p style='color:red;'>לא נמצאו נתונים בגיליון</p>";
+          return;
+        }
+
+        // שלב 4: חיפוש מסמכים לפי שם פרשה
+        const rows = data.values;
+        const headers = rows[0];
+        const topicIndex = headers.indexOf("שם פרשה");
+        const nameIndex = headers.indexOf("שם המסמך");
+        const linkIndex = headers.indexOf("קישור");
+
+        const matchingDocs = rows.filter((row, i) => {
+          if (i === 0) return false; // דלג על כותרות
+          return row[topicIndex]?.trim().toLowerCase() === inputTopic;
+        });
+
+        if (matchingDocs.length === 0) {
+          resultDiv.innerHTML = "<p style='color:red;'>לא נמצאו מסמכים לפרשה זו</p>";
+          return;
+        }
+
+        // שלב 5: הצגת המסמכים
+        matchingDocs.forEach(row => {
+          const name = row[nameIndex] || "ללא שם";
+          const link = row[linkIndex];
+
+          // ממיר את הקישור לתצוגה
+          const previewLink = link.replace("/view?usp=drive_link", "/preview").replace("/edit?usp=sharing", "/preview");
+
+          const frame = document.createElement("iframe");
+          frame.src = previewLink;
+          frame.width = "100%";
+          frame.height = "500";
+          frame.style = "margin-bottom: 20px; border: 1px solid #ccc";
+
+          const title = document.createElement("h3");
+          title.textContent = name;
+
+          resultDiv.appendChild(title);
+          resultDiv.appendChild(frame);
+        });
+      } catch (error) {
+        console.error("שגיאה:", error);
+        resultDiv.innerHTML = "<p style='color:red;'>אירעה שגיאה בעת הטעינה</p>";
+      }
+    }
+  </script>
+</body>
+</html>
